@@ -71,6 +71,12 @@ void mp_hal_delay_ms(mp_uint_t ms);
 void mp_hal_delay_us(mp_uint_t us);
 #endif
 
+#if MICROPY_TIME_TICKS_S
+#ifndef mp_hal_ticks_s
+mp_uint_t mp_hal_ticks_s(void);
+#endif
+#endif
+
 #ifndef mp_hal_ticks_ms
 mp_uint_t mp_hal_ticks_ms(void);
 #endif

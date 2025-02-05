@@ -204,6 +204,22 @@ void mp_hal_stdout_tx_str(const char *str) {
     mp_hal_stdout_tx_strn(str, strlen(str));
 }
 
+#if MICROPY_TIME_TICKS_S
+#ifndef mp_hal_ticks_s
+mp_uint_t mp_hal_ticks_s(void) {
+    #if (defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)
+    struct timespec tv;
+    clock_gettime(CLOCK_MONOTONIC, &tv);
+    return tv.tv_sec;
+    #else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return tv.tv_sec;
+    #endif
+}
+#endif
+#endif
+
 #ifndef mp_hal_ticks_ms
 mp_uint_t mp_hal_ticks_ms(void) {
     #if (defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)

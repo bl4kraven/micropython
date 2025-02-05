@@ -62,7 +62,7 @@ static inline int msec_sleep_tv(struct timeval *tv) {
 #endif
 
 static mp_obj_t mp_time_time_get(void) {
-    #if MICROPY_PY_BUILTINS_FLOAT && MICROPY_FLOAT_IMPL == MICROPY_FLOAT_IMPL_DOUBLE
+    #if MICROPY_PY_BUILTINS_FLOAT && MICROPY_FLOAT_IMPL == MICROPY_FLOAT_IMPL_DOUBLE && !MICROPY_TIME_TIME_INT
     struct timeval tv;
     gettimeofday(&tv, NULL);
     mp_float_t val = tv.tv_sec + (mp_float_t)tv.tv_usec / 1000000;
@@ -130,7 +130,7 @@ static mp_obj_t mod_time_gm_local_time(size_t n_args, const mp_obj_t *args, stru
     if (n_args == 0) {
         t = time(NULL);
     } else {
-        #if MICROPY_PY_BUILTINS_FLOAT && MICROPY_FLOAT_IMPL == MICROPY_FLOAT_IMPL_DOUBLE
+        #if MICROPY_PY_BUILTINS_FLOAT && MICROPY_FLOAT_IMPL == MICROPY_FLOAT_IMPL_DOUBLE && !MICROPY_TIME_TIME_INT
         mp_float_t val = mp_obj_get_float(args[0]);
         t = (time_t)MICROPY_FLOAT_C_FUN(trunc)(val);
         #else
@@ -138,6 +138,12 @@ static mp_obj_t mod_time_gm_local_time(size_t n_args, const mp_obj_t *args, stru
         #endif
     }
     struct tm *tm = time_func(&t);
+
+#if MICROPY_TIME_LOCALTIME_MS
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	int microseconds = tv.tv_usec;
+#endif
 
     mp_obj_t ret = mp_obj_new_tuple(9, NULL);
 
@@ -154,7 +160,12 @@ static mp_obj_t mod_time_gm_local_time(size_t n_args, const mp_obj_t *args, stru
     }
     tuple->items[6] = MP_OBJ_NEW_SMALL_INT(wday);
     tuple->items[7] = MP_OBJ_NEW_SMALL_INT(tm->tm_yday + 1);
+
+#if MICROPY_TIME_LOCALTIME_MS
+    tuple->items[8] = MP_OBJ_NEW_SMALL_INT(microseconds);
+#else
     tuple->items[8] = MP_OBJ_NEW_SMALL_INT(tm->tm_isdst);
+#endif
 
     return ret;
 }
