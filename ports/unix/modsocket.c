@@ -492,6 +492,8 @@ static mp_obj_t socket_make_new(const mp_obj_type_t *type_in, size_t n_args, siz
 
     MP_THREAD_GIL_EXIT();
     int fd = socket(family, type, proto);
+	// set FD_CLOEXEC
+	fcntl(fd, F_SETFD, FD_CLOEXEC);
     MP_THREAD_GIL_ENTER();
     RAISE_ERRNO(fd, errno);
     return MP_OBJ_FROM_PTR(socket_new(fd));
