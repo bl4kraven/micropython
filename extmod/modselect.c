@@ -35,10 +35,6 @@
 
 #if MICROPY_PY_SELECT
 
-#if MICROPY_PY_SELECT_SELECT && MICROPY_PY_SELECT_POSIX_OPTIMISATIONS
-#error "select.select is not supported with MICROPY_PY_SELECT_POSIX_OPTIMISATIONS"
-#endif
-
 #if MICROPY_PY_SELECT_POSIX_OPTIMISATIONS
 
 #include <string.h>
@@ -106,7 +102,7 @@ static void poll_set_init(poll_set_t *poll_set, size_t n) {
     #endif
 }
 
-#if MICROPY_PY_SELECT_SELECT
+#if MICROPY_PY_SELECT_SELECT && !MICROPY_PY_SELECT_POSIX_OPTIMISATIONS
 static void poll_set_deinit(poll_set_t *poll_set) {
     mp_map_deinit(&poll_set->map);
 }
@@ -277,7 +273,7 @@ static void poll_set_add_obj(poll_set_t *poll_set, const mp_obj_t *obj, mp_uint_
         } else {
             // object exists; update its events
             poll_obj_t *poll_obj = (poll_obj_t *)MP_OBJ_TO_PTR(elem->value);
-            #if MICROPY_PY_SELECT_SELECT
+            #if MICROPY_PY_SELECT_SELECT && !MICROPY_PY_SELECT_POSIX_OPTIMISATIONS
             if (or_events) {
                 events |= poll_obj_get_events(poll_obj);
             }
@@ -318,7 +314,7 @@ static mp_uint_t poll_set_poll_once(poll_set_t *poll_set, size_t *rwx_num) {
         if (ret != 0) {
             // object is ready
             n_ready += 1;
-            #if MICROPY_PY_SELECT_SELECT
+            #if MICROPY_PY_SELECT_SELECT && !MICROPY_PY_SELECT_POSIX_OPTIMISATIONS
             if (rwx_num != NULL) {
                 if (ret & MP_STREAM_POLL_RD) {
                     rwx_num[0] += 1;
@@ -413,6 +409,22 @@ static mp_uint_t poll_set_poll_until_ready_or_timeout(poll_set_t *poll_set, size
 }
 
 #if MICROPY_PY_SELECT_SELECT
+#if MICROPY_PY_SELECT_POSIX_OPTIMISATIONS
+static int get_fd(mp_obj_t fdlike) {
+    if (mp_obj_is_obj(fdlike)) {
+        const mp_stream_p_t *stream_p = mp_get_stream_raise(fdlike, MP_STREAM_OP_IOCTL);
+        int err;
+        mp_uint_t res = stream_p->ioctl(fdlike, MP_STREAM_GET_FILENO, 0, &err);
+        if (res != MP_STREAM_ERROR) {
+            return res;
+        }
+    }
+    return mp_obj_get_int(fdlike);
+}
+
+#define MAX_SELECT_FD 64
+#endif
+
 // select(rlist, wlist, xlist[, timeout])
 static mp_obj_t select_select(size_t n_args, const mp_obj_t *args) {
     // get array data from tuple/list arguments
@@ -436,6 +448,84 @@ static mp_obj_t select_select(size_t n_args, const mp_obj_t *args) {
             #endif
         }
     }
+
+#if MICROPY_PY_SELECT_POSIX_OPTIMISATIONS
+	int nfds = 0;
+	struct timeval tv;
+	fd_set read_set, write_set, error_set;
+	FD_ZERO(&read_set);
+	FD_ZERO(&write_set);
+	FD_ZERO(&error_set);
+
+	if (timeout != (mp_uint_t)-1)
+	{
+		tv.tv_sec = timeout/1000;
+		tv.tv_usec = (timeout%1000)*1000;
+	}
+
+    for (mp_uint_t i = 0; i < rwx_len[0]; i++)
+	{
+		int _fd = get_fd(r_array[i]);
+		if (nfds < _fd)
+			nfds = _fd;
+		FD_SET(_fd, &read_set);
+	}
+
+    for (mp_uint_t i = 0; i < rwx_len[1]; i++)
+	{
+		int _fd = get_fd(w_array[i]);
+		if (nfds < _fd)
+			nfds = _fd;
+		FD_SET(_fd, &write_set);
+	}
+
+    for (mp_uint_t i = 0; i < rwx_len[2]; i++)
+	{
+		int _fd = get_fd(x_array[i]);
+		if (nfds < _fd)
+			nfds = _fd;
+		FD_SET(_fd, &error_set);
+	}
+
+    int n_ready;
+	if (timeout != (mp_uint_t)-1)
+	{
+		MP_HAL_RETRY_SYSCALL(n_ready, select(nfds+1, &read_set, &write_set, &error_set, &tv), mp_raise_OSError(err));
+	}
+	else
+	{
+		MP_HAL_RETRY_SYSCALL(n_ready, select(nfds+1, &read_set, &write_set, &error_set, NULL), mp_raise_OSError(err));
+	}
+
+	mp_obj_t list_array[3];
+	list_array[0] = mp_obj_new_list(0, NULL);
+	list_array[1] = mp_obj_new_list(0, NULL);
+	list_array[2] = mp_obj_new_list(0, NULL);
+	if (n_ready > 0)
+	{
+		for (mp_uint_t i = 0; i < rwx_len[0]; i++)
+		{
+			int _fd = get_fd(r_array[i]);
+			if (FD_ISSET(_fd, &read_set))
+				mp_obj_list_append(list_array[0], r_array[i]);
+		}
+
+		for (mp_uint_t i = 0; i < rwx_len[1]; i++)
+		{
+			int _fd = get_fd(w_array[i]);
+			if (FD_ISSET(_fd, &write_set))
+				mp_obj_list_append(list_array[1], w_array[i]);
+		}
+
+		for (mp_uint_t i = 0; i < rwx_len[2]; i++)
+		{
+			int _fd = get_fd(x_array[i]);
+			if (FD_ISSET(_fd, &error_set))
+				mp_obj_list_append(list_array[2], x_array[i]);
+		}
+	}
+
+#else
 
     // merge separate lists and get the ioctl function for each object
     poll_set_t poll_set;
@@ -470,7 +560,9 @@ static mp_obj_t select_select(size_t n_args, const mp_obj_t *args) {
         }
     }
     poll_set_deinit(&poll_set);
-    return mp_obj_new_tuple(3, list_array);
+
+#endif
+	return mp_obj_new_tuple(3, list_array);
 }
 MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mp_select_select_obj, 3, 4, select_select);
 #endif // MICROPY_PY_SELECT_SELECT
