@@ -242,10 +242,11 @@ uint64_t mp_hal_time_ns(void) {
 
 #ifndef mp_hal_delay_ms
 void mp_hal_delay_ms(mp_uint_t ms) {
-    mp_uint_t start = mp_hal_ticks_ms();
-    while (mp_hal_ticks_ms() - start < ms) {
-        mp_event_wait_ms(1);
-    }
+    //mp_uint_t start = mp_hal_ticks_ms();
+    //while (mp_hal_ticks_ms() - start < ms) {
+    //    mp_event_wait_ms(1);
+    //}
+    usleep(ms * 1000);
 }
 #endif
 
