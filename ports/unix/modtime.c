@@ -135,7 +135,15 @@ static mp_obj_t mod_time_gm_local_time(size_t n_args, const mp_obj_t *args, stru
     }
     struct tm *tm = time_func(&t);
 
+#if MICROPY_TIME_LOCALTIME_MS
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	int microseconds = tv.tv_usec;
+
+    mp_obj_t ret = mp_obj_new_tuple(10, NULL);
+#else
     mp_obj_t ret = mp_obj_new_tuple(9, NULL);
+#endif
 
     mp_obj_tuple_t *tuple = MP_OBJ_TO_PTR(ret);
     tuple->items[0] = MP_OBJ_NEW_SMALL_INT(tm->tm_year + 1900);
@@ -150,7 +158,11 @@ static mp_obj_t mod_time_gm_local_time(size_t n_args, const mp_obj_t *args, stru
     }
     tuple->items[6] = MP_OBJ_NEW_SMALL_INT(wday);
     tuple->items[7] = MP_OBJ_NEW_SMALL_INT(tm->tm_yday + 1);
+
     tuple->items[8] = MP_OBJ_NEW_SMALL_INT(tm->tm_isdst);
+#if MICROPY_TIME_LOCALTIME_MS
+    tuple->items[9] = MP_OBJ_NEW_SMALL_INT(microseconds);
+#endif
 
     return ret;
 }
@@ -171,7 +183,11 @@ static mp_obj_t mod_time_mktime(mp_obj_t tuple) {
     mp_obj_get_array(tuple, &len, &elem);
 
     // localtime generates a tuple of len 8. CPython uses 9, so we accept both.
+#if MICROPY_TIME_LOCALTIME_MS
+    if (len < 8 || len > 10) {
+#else
     if (len < 8 || len > 9) {
+#endif
         mp_raise_TypeError(MP_ERROR_TEXT("mktime needs a tuple of length 8 or 9"));
     }
 
@@ -183,7 +199,11 @@ static mp_obj_t mod_time_mktime(mp_obj_t tuple) {
         .tm_min = mp_obj_get_int(elem[4]),
         .tm_sec = mp_obj_get_int(elem[5]),
     };
+#if MICROPY_TIME_LOCALTIME_MS
+    if (len == 9 || len == 10) {
+#else
     if (len == 9) {
+#endif
         time.tm_isdst = mp_obj_get_int(elem[8]);
     } else {
         time.tm_isdst = -1; // auto-detect

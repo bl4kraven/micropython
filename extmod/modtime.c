@@ -148,6 +148,13 @@ static mp_obj_t time_sleep_us(mp_obj_t arg) {
 }
 MP_DEFINE_CONST_FUN_OBJ_1(mp_time_sleep_us_obj, time_sleep_us);
 
+#if MICROPY_TIME_TICKS_S
+static mp_obj_t time_ticks_s(void) {
+    return MP_OBJ_NEW_SMALL_INT(mp_hal_ticks_s() & (MICROPY_PY_TIME_TICKS_PERIOD - 1));
+}
+MP_DEFINE_CONST_FUN_OBJ_0(mp_time_ticks_s_obj, time_ticks_s);
+#endif
+
 static mp_obj_t time_ticks_ms(void) {
     return MP_OBJ_NEW_SMALL_INT(mp_hal_ticks_ms() & (MICROPY_PY_TIME_TICKS_PERIOD - 1));
 }
@@ -214,6 +221,9 @@ static const mp_rom_map_elem_t mp_module_time_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_sleep_ms), MP_ROM_PTR(&mp_time_sleep_ms_obj) },
     { MP_ROM_QSTR(MP_QSTR_sleep_us), MP_ROM_PTR(&mp_time_sleep_us_obj) },
 
+#if MICROPY_TIME_TICKS_S
+    { MP_ROM_QSTR(MP_QSTR_ticks_s), MP_ROM_PTR(&mp_time_ticks_s_obj) },
+#endif
     { MP_ROM_QSTR(MP_QSTR_ticks_ms), MP_ROM_PTR(&mp_time_ticks_ms_obj) },
     { MP_ROM_QSTR(MP_QSTR_ticks_us), MP_ROM_PTR(&mp_time_ticks_us_obj) },
     { MP_ROM_QSTR(MP_QSTR_ticks_cpu), MP_ROM_PTR(&mp_time_ticks_cpu_obj) },
