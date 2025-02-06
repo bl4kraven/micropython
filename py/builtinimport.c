@@ -207,6 +207,32 @@ static void do_load(mp_module_context_t *module_obj, vstr_t *file) {
     const char *file_str = vstr_null_terminated_str(file);
     #endif
 
+	if (mp_import_stat(file_str) == MP_IMPORT_STAT_FILE) 
+	{
+		qstr file_qstr = qstr_from_str(file_str);
+
+		// If we support loading .mpy files then check if the file extension is of
+		// the correct format and, if so, load and execute the file.
+		#if MICROPY_HAS_FILE_READER && MICROPY_PERSISTENT_CODE_LOAD
+		if (file_str[file->len - 3] == 'm') {
+			mp_compiled_module_t cm;
+			cm.context = module_obj;
+			mp_raw_code_load_file(file_qstr, &cm);
+			do_execute_proto_fun(cm.context, cm.rc, file_qstr);
+			return;
+		}
+		#endif
+
+		// If we can compile scripts then load the file and compile and execute it.
+		#if MICROPY_ENABLE_COMPILER
+		{
+			mp_lexer_t *lex = mp_lexer_new_from_file(file_qstr);
+			do_load_from_lexer(module_obj, lex);
+			return;
+		}
+		#endif
+	}
+
     // If we support frozen modules (either as str or mpy) then try to find the
     // requested filename in the list of frozen module filenames.
     #if MICROPY_MODULE_FROZEN
@@ -242,33 +268,10 @@ static void do_load(mp_module_context_t *module_obj, vstr_t *file) {
         #endif
     }
 
+	#else
+	// If we get here then the file was not frozen and we can't compile scripts.
+	mp_raise_msg(&mp_type_ImportError, MP_ERROR_TEXT("script compilation not supported"));
     #endif // MICROPY_MODULE_FROZEN
-
-    qstr file_qstr = qstr_from_str(file_str);
-
-    // If we support loading .mpy files then check if the file extension is of
-    // the correct format and, if so, load and execute the file.
-    #if MICROPY_HAS_FILE_READER && MICROPY_PERSISTENT_CODE_LOAD
-    if (file_str[file->len - 3] == 'm') {
-        mp_compiled_module_t cm;
-        cm.context = module_obj;
-        mp_raw_code_load_file(file_qstr, &cm);
-        do_execute_proto_fun(cm.context, cm.rc, file_qstr);
-        return;
-    }
-    #endif
-
-    // If we can compile scripts then load the file and compile and execute it.
-    #if MICROPY_ENABLE_COMPILER
-    {
-        mp_lexer_t *lex = mp_lexer_new_from_file(file_qstr);
-        do_load_from_lexer(module_obj, lex);
-        return;
-    }
-    #else
-    // If we get here then the file was not frozen and we can't compile scripts.
-    mp_raise_msg(&mp_type_ImportError, MP_ERROR_TEXT("script compilation not supported"));
-    #endif
 }
 
 // Convert a relative (to the current module) import, going up "level" levels,
