@@ -39,7 +39,7 @@
 
 void mp_obj_tuple_print(const mp_print_t *print, mp_obj_t o_in, mp_print_kind_t kind) {
     mp_obj_tuple_t *o = MP_OBJ_TO_PTR(o_in);
-    const char *item_separator = ", ";
+    const char *item_separator = ",";
     if (MICROPY_PY_JSON && kind == PRINT_JSON) {
         mp_print_str(print, "[");
         #if MICROPY_PY_JSON_SEPARATORS
