@@ -154,11 +154,13 @@ int mp_os_dupterm_rx_chr(void) {
                 // read 1 byte
                 nlr_pop();
                 ret = buf[0];
+#if MICROPY_KBD_EXCEPTION
                 if (ret == mp_interrupt_char) {
                     // Signal keyboard interrupt to be raised as soon as the VM resumes
                     mp_sched_keyboard_interrupt();
                     ret = -2;
                 }
+#endif
                 break;
             }
         } else {

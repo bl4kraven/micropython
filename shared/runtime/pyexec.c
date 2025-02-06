@@ -110,14 +110,18 @@ static int parse_compile_execute(const void *source, mp_parse_input_kind_t input
         }
 
         // execute code
+#if MICROPY_KBD_EXCEPTION
         if (!(exec_flags & EXEC_FLAG_NO_INTERRUPT)) {
             mp_hal_set_interrupt_char(CHAR_CTRL_C);
         }
+#endif
         #if MICROPY_REPL_INFO
         start = mp_hal_ticks_ms();
         #endif
         mp_call_function_0(module_fun);
+#if MICROPY_KBD_EXCEPTION
         mp_hal_set_interrupt_char(-1); // disable interrupt
+#endif
         mp_handle_pending(true); // handle any pending exceptions (and any callbacks)
         nlr_pop();
         ret = 1;
@@ -126,7 +130,9 @@ static int parse_compile_execute(const void *source, mp_parse_input_kind_t input
         }
     } else {
         // uncaught exception
+#if MICROPY_KBD_EXCEPTION
         mp_hal_set_interrupt_char(-1); // disable interrupt
+#endif
         mp_handle_pending(false); // clear any pending exceptions (and run any callbacks)
 
         if (exec_flags & EXEC_FLAG_SOURCE_IS_READER) {
