@@ -100,15 +100,21 @@ static mp_import_stat_t stat_file_py_or_mpy(vstr_t *path) {
 // result is a file, the path argument will be updated to include the file
 // extension.
 static mp_import_stat_t stat_module(vstr_t *path) {
-    mp_import_stat_t stat = stat_path(path);
+    mp_import_stat_t stat;
+	size_t path_len = path->len;
     DEBUG_printf("stat %s: %d\n", vstr_str(path), stat);
-    if (stat == MP_IMPORT_STAT_DIR) {
-        return stat;
-    }
 
-    // Not a directory, add .py and try as a file.
+    // try .py and try as a file.
     vstr_add_str(path, ".py");
-    return stat_file_py_or_mpy(path);
+    stat = stat_file_py_or_mpy(path);
+	if (stat == MP_IMPORT_STAT_NO_EXIST)
+	{
+		// try directory.
+		vstr_cut_tail_bytes(path, path->len - path_len);
+		return stat_path(path);
+	}
+
+	return stat;
 }
 
 // Given a top-level module name, try and find it in each of the sys.path
