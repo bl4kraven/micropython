@@ -32,6 +32,43 @@
 #include "py/runtime.h"
 #include "py/mphal.h"
 
+static mp_obj_t os_pidfile(mp_obj_t path_name)
+{
+	const char *str_path_name = mp_obj_str_get_str(path_name);
+	int r = 0;
+	int fd = -1;
+	struct flock fl = {
+		.l_type = F_WRLCK,
+		.l_start = 0,
+		.l_whence = SEEK_SET,
+		.l_len = 0,
+	};
+
+    MP_THREAD_GIL_EXIT();
+	r = open(str_path_name, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+	if (r >= 0)
+	{
+		fd = r;
+		r = fcntl(fd, F_SETLK, &fl);
+		if (r >= 0)
+		{
+			char buf[16];
+			r = ftruncate(fd, 0);
+			if (r >= 0)
+			{
+				snprintf(buf, 16, "%ld\n", (long)getpid());
+				r = write(fd, buf, strlen(buf));
+			}
+		}
+	}
+    MP_THREAD_GIL_ENTER();
+
+    RAISE_ERRNO(r, errno);
+
+	return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(os_pidfile_obj, os_pidfile);
+
 static mp_obj_t mp_os_getenv(size_t n_args, const mp_obj_t *args) {
     const char *s = getenv(mp_obj_str_get_str(args[0]));
     if (s == NULL) {
