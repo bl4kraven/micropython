@@ -587,6 +587,17 @@ static mp_obj_t dict_getiter(mp_obj_t self_in, mp_obj_iter_buf_t *iter_buf) {
     return MP_OBJ_FROM_PTR(o);
 }
 
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+static mp_obj_t dict_has_key(mp_obj_t self_in, mp_obj_t obj_key)
+{
+    mp_check_self(mp_obj_is_dict_or_ordereddict(self_in));
+    mp_obj_dict_t *self = MP_OBJ_TO_PTR(self_in);
+    mp_map_elem_t *elem = mp_map_lookup(&self->map, obj_key, MP_MAP_LOOKUP);
+	return (elem != NULL && elem->value != MP_OBJ_NULL) ? mp_const_true : mp_const_false;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(dict_has_key_obj, dict_has_key);
+#endif
+
 /******************************************************************************/
 /* dict constructors & public C API                                           */
 
@@ -597,6 +608,13 @@ static const mp_rom_map_elem_t dict_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_fromkeys), MP_ROM_PTR(&dict_fromkeys_obj) },
     #endif
     { MP_ROM_QSTR(MP_QSTR_get), MP_ROM_PTR(&dict_get_obj) },
+
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+    { MP_ROM_QSTR(MP_QSTR_has_key), MP_ROM_PTR(&dict_has_key_obj) },
+    { MP_ROM_QSTR(MP_QSTR_iteritems), MP_ROM_PTR(&dict_items_obj) },
+    { MP_ROM_QSTR(MP_QSTR_iterkeys), MP_ROM_PTR(&dict_keys_obj) },
+    { MP_ROM_QSTR(MP_QSTR_itervalues), MP_ROM_PTR(&dict_values_obj) },
+#endif
     { MP_ROM_QSTR(MP_QSTR_items), MP_ROM_PTR(&dict_items_obj) },
     { MP_ROM_QSTR(MP_QSTR_keys), MP_ROM_PTR(&dict_keys_obj) },
     { MP_ROM_QSTR(MP_QSTR_pop), MP_ROM_PTR(&dict_pop_obj) },

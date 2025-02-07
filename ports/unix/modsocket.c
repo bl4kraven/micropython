@@ -38,6 +38,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+#include <netinet/tcp.h>
+#endif
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <errno.h>
@@ -224,12 +227,41 @@ static MP_DEFINE_CONST_FUN_OBJ_2(socket_connect_obj, socket_connect);
 
 static mp_obj_t socket_bind(mp_obj_t self_in, mp_obj_t addr_in) {
     mp_obj_socket_t *self = MP_OBJ_TO_PTR(self_in);
+
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+	if (mp_obj_is_type(addr_in, &mp_type_tuple))
+	{
+		struct sockaddr_in _addr;
+        mp_obj_t *items;
+        mp_obj_get_array_fixed_n(addr_in, 2, &items);
+		memset(&_addr, 0, sizeof(_addr));
+		_addr.sin_family = AF_INET;
+		_addr.sin_addr.s_addr = inet_addr(mp_obj_str_get_str(items[0]));
+		_addr.sin_port = htons(mp_obj_get_int(items[1]));
+
+		MP_THREAD_GIL_EXIT();
+		int r = bind(self->fd, (const struct sockaddr *)&_addr, sizeof(_addr));
+		MP_THREAD_GIL_ENTER();
+		RAISE_ERRNO(r, errno);
+	}
+	else
+	{
+		mp_buffer_info_t bufinfo;
+		mp_get_buffer_raise(addr_in, &bufinfo, MP_BUFFER_READ);
+		MP_THREAD_GIL_EXIT();
+		int r = bind(self->fd, (const struct sockaddr *)bufinfo.buf, bufinfo.len);
+		MP_THREAD_GIL_ENTER();
+		RAISE_ERRNO(r, errno);
+	}
+#else
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(addr_in, &bufinfo, MP_BUFFER_READ);
     MP_THREAD_GIL_EXIT();
     int r = bind(self->fd, (const struct sockaddr *)bufinfo.buf, bufinfo.len);
     MP_THREAD_GIL_ENTER();
     RAISE_ERRNO(r, errno);
+#endif
+
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(socket_bind_obj, socket_bind);
@@ -499,6 +531,20 @@ static mp_obj_t socket_make_new(const mp_obj_type_t *type_in, size_t n_args, siz
     return MP_OBJ_FROM_PTR(socket_new(fd));
 }
 
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+static mp_obj_t socket_getpeername(mp_obj_t self_in) {
+    mp_obj_socket_t *self = MP_OBJ_TO_PTR(self_in);
+    byte addr[32];
+    socklen_t addr_len = sizeof(addr);
+    int ret;
+    MP_HAL_RETRY_SYSCALL(ret, getpeername(self->fd, (struct sockaddr *)&addr, &addr_len), 
+			mp_raise_OSError(err));
+
+    return mp_obj_new_bytearray(addr_len, &addr);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(socket_getpeername_obj, socket_getpeername);
+#endif
+
 static const mp_rom_map_elem_t socket_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_fileno), MP_ROM_PTR(&socket_fileno_obj) },
     { MP_ROM_QSTR(MP_QSTR_makefile), MP_ROM_PTR(&socket_makefile_obj) },
@@ -510,6 +556,9 @@ static const mp_rom_map_elem_t socket_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_bind), MP_ROM_PTR(&socket_bind_obj) },
     { MP_ROM_QSTR(MP_QSTR_listen), MP_ROM_PTR(&socket_listen_obj) },
     { MP_ROM_QSTR(MP_QSTR_accept), MP_ROM_PTR(&socket_accept_obj) },
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+    { MP_ROM_QSTR(MP_QSTR_getpeername), MP_ROM_PTR(&socket_getpeername_obj) },
+#endif
     { MP_ROM_QSTR(MP_QSTR_recv), MP_ROM_PTR(&socket_recv_obj) },
     { MP_ROM_QSTR(MP_QSTR_recvfrom), MP_ROM_PTR(&socket_recvfrom_obj) },
     { MP_ROM_QSTR(MP_QSTR_send), MP_ROM_PTR(&socket_send_obj) },
@@ -692,6 +741,10 @@ static const mp_rom_map_elem_t mp_module_socket_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_inet_pton), MP_ROM_PTR(&mod_socket_inet_pton_obj) },
     { MP_ROM_QSTR(MP_QSTR_inet_ntop), MP_ROM_PTR(&mod_socket_inet_ntop_obj) },
     { MP_ROM_QSTR(MP_QSTR_sockaddr), MP_ROM_PTR(&mod_socket_sockaddr_obj) },
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+    { MP_ROM_QSTR(MP_QSTR_error), MP_ROM_PTR(&mp_type_OSError) },
+    { MP_ROM_QSTR(MP_QSTR_gaierror), MP_ROM_PTR(&mp_type_OSError) },
+#endif
 
 #define C(name) { MP_ROM_QSTR(MP_QSTR_##name), MP_ROM_INT(name) }
     C(AF_UNIX),
@@ -710,6 +763,19 @@ static const mp_rom_map_elem_t mp_module_socket_globals_table[] = {
     C(SO_KEEPALIVE),
     C(SO_LINGER),
     C(SO_REUSEADDR),
+
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+    C(SOL_TCP),
+    C(IPPROTO_UDP),
+    C(IPPROTO_TCP),
+    C(IPPROTO_IP),
+    C(TCP_NODELAY),
+    C(IP_ADD_MEMBERSHIP),
+    C(TCP_KEEPIDLE),
+    C(TCP_KEEPINTVL),
+    C(TCP_KEEPCNT),
+    C(TCP_USER_TIMEOUT),
+#endif
 #undef C
 };
 
