@@ -45,7 +45,8 @@ INC += -I$(BUILD)
 
 # compiler settings
 CWARN = -Wall -Werror
-CWARN += -Wextra -Wno-unused-parameter -Wpointer-arith -Wdouble-promotion -Wfloat-conversion
+#CWARN += -Wextra -Wno-unused-parameter -Wpointer-arith -Wdouble-promotion -Wfloat-conversion
+CWARN += -Wextra -Wno-unused-parameter -Wdouble-promotion -Wfloat-conversion
 CFLAGS += $(INC) $(CWARN) -std=gnu99 -DUNIX $(COPT) -I$(VARIANT_DIR) $(CFLAGS_EXTRA)
 
 # Debugging/Optimization
@@ -192,6 +193,59 @@ ifeq ($(MICROPY_PY_JNI),1)
 # Path for 64-bit OpenJDK, should be adjusted for other JDKs
 CFLAGS += -I/usr/lib/jvm/java-7-openjdk-amd64/include -DMICROPY_PY_JNI=1
 endif
+
+################################################################################
+# LVGL unix optional libraries
+# Update CFLAGS_EXTMOD and LDFLAGS_EXTMOD for LVGL extenral library,
+# but do that only on the unix port, for unix specific dependencies
+ifeq ($(MICROPY_PY_LVGL),1)
+
+ifneq ($(UNAME_S),Darwin)
+CFLAGS_EXTMOD += -DMICROPY_FB=1
+endif
+
+SDL_CFLAGS_EXTMOD :=  $(shell pkg-config --silence-errors --cflags sdl2)
+SDL_LDFLAGS_EXTMOD := $(shell pkg-config --silence-errors --libs   sdl2)
+ifneq ($(SDL_LDFLAGS_EXTMOD),)
+ifeq ($(CROSS_COMPILE),)
+CFLAGS_EXTMOD += $(SDL_CFLAGS_EXTMOD) -DMICROPY_SDL=1
+LDFLAGS_EXTMOD += $(SDL_LDFLAGS_EXTMOD)
+endif
+endif
+
+RLOTTIE_CFLAGS_EXTMOD :=  $(shell pkg-config --silence-errors --cflags rlottie)
+RLOTTIE_LDFLAGS_EXTMOD := $(shell pkg-config --silence-errors --libs   rlottie)
+ifneq ($(RLOTTIE_LDFLAGS_EXTMOD),)
+ifeq ($(CROSS_COMPILE),)
+CFLAGS_EXTMOD += $(RLOTTIE_CFLAGS_EXTMOD) -DMICROPY_RLOTTIE=1
+LDFLAGS_EXTMOD += $(RLOTTIE_LDFLAGS_EXTMOD)
+endif
+endif
+
+FREETYPE_CFLAGS_EXTMOD :=  $(shell pkg-config --silence-errors --cflags freetype2)
+FREETYPE_LDFLAGS_EXTMOD := $(shell pkg-config --silence-errors --libs   freetype2)
+ifneq ($(FREETYPE_LDFLAGS_EXTMOD),)
+ifeq ($(CROSS_COMPILE),)
+CFLAGS_EXTMOD += $(FREETYPE_CFLAGS_EXTMOD) -DMICROPY_FREETYPE=1
+LDFLAGS_EXTMOD += $(FREETYPE_LDFLAGS_EXTMOD)
+endif
+endif
+
+ifneq ($(FFMPEG_LDFLAGS_EXTMOD),)
+ifeq ($(CROSS_COMPILE),)
+FFMPEG_LIBS := libavformat libavcodec libswscale libavutil
+FFMPEG_CFLAGS_EXTMOD :=  $(shell pkg-config --silence-errors --cflags $(FFMPEG_LIBS))
+FFMPEG_LDFLAGS_EXTMOD := $(shell pkg-config --silence-errors --libs   $(FFMPEG_LIBS))
+CFLAGS_EXTMOD += $(FFMPEG_CFLAGS_EXTMOD) -DMICROPY_FFMPEG=1
+LDFLAGS_EXTMOD += $(FFMPEG_LDFLAGS_EXTMOD)
+endif
+endif
+
+ifeq ($(MICROPY_PY_EVDEV),1)
+CFLAGS_EXTMOD += -DMICROPY_EVDEV=1
+endif
+
+endif 
 
 # source files
 SRC_C += \
