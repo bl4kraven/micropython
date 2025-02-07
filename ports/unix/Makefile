@@ -213,6 +213,10 @@ SRC_C += \
 	modjni.c \
 	$(wildcard $(VARIANT_DIR)/*.c)
 
+ifeq ($(MICROPY_PY_UBUS),1)
+SRC_C += modubus.c
+endif
+
 SHARED_SRC_C += $(addprefix shared/,\
 	runtime/gchelper_generic.c \
 	timeutils/timeutils.c \
