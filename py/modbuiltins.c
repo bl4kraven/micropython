@@ -651,6 +651,9 @@ static const mp_rom_map_elem_t mp_module_builtins_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_slice), MP_ROM_PTR(&mp_type_slice) },
     #endif
     { MP_ROM_QSTR(MP_QSTR_str), MP_ROM_PTR(&mp_type_str) },
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+    { MP_ROM_QSTR(MP_QSTR_unicode), MP_ROM_PTR(&mp_type_str) },
+#endif
     { MP_ROM_QSTR(MP_QSTR_super), MP_ROM_PTR(&mp_type_super) },
     { MP_ROM_QSTR(MP_QSTR_tuple), MP_ROM_PTR(&mp_type_tuple) },
     { MP_ROM_QSTR(MP_QSTR_type), MP_ROM_PTR(&mp_type_type) },

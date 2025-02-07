@@ -82,6 +82,14 @@ mp_obj_t mp_vfs_posix_file_open(const mp_obj_type_t *type, mp_obj_t file_in, mp_
             case '+':
                 mode_rw = O_RDWR;
                 break;
+#if MICROPY_PY_CPYTHON_COMPATIBLE
+			case 'T':
+				mode_x = O_NOCTTY;
+				break;
+			case 'B':
+				mode_x = O_NONBLOCK;
+				break;
+#endif
             case 'b':
                 type = &mp_type_vfs_posix_fileio;
                 break;

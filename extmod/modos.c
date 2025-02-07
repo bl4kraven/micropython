@@ -170,6 +170,11 @@ static const mp_rom_map_elem_t os_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_pidfile), MP_ROM_PTR(&os_pidfile_obj) },
     #endif
 
+    #if MICROPY_PY_CPYTHON_COMPATIBLE
+    { MP_ROM_QSTR(MP_QSTR_mknod), MP_ROM_PTR(&os_mknod_obj) },
+    { MP_ROM_QSTR(MP_QSTR_path), MP_ROM_PTR(&mp_type_os_path) },
+    #endif
+
     #if MICROPY_VFS
     { MP_ROM_QSTR(MP_QSTR_sep), MP_ROM_QSTR(MP_QSTR__slash_) },
     { MP_ROM_QSTR(MP_QSTR_chdir), MP_ROM_PTR(&mp_vfs_chdir_obj) },
