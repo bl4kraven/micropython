@@ -218,6 +218,11 @@ SRC_C += \
 	modjni.c \
 	$(wildcard $(VARIANT_DIR)/*.c)
 
+ifeq ($(MICROPY_PY_UBUS),1)
+SRC_C += modubus.c
+LDFLAGS += -lubus -lubox -lblobmsg_json
+endif
+
 SHARED_SRC_C += $(addprefix shared/,\
 	runtime/gchelper_generic.c \
 	runtime/pyexec.c \
