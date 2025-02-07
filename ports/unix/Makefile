@@ -274,7 +274,7 @@ test_gcov: test_full
 # Value of configure's --host= option (required for cross-compilation).
 # Deduce it from CROSS_COMPILE by default, but can be overridden.
 ifneq ($(CROSS_COMPILE),)
-CROSS_COMPILE_HOST = --host=$(patsubst %-,%,$(CROSS_COMPILE))
+CROSS_COMPILE_HOST = --host=$(patsubst %-,%,$(notdir $(CROSS_COMPILE)))
 else
 CROSS_COMPILE_HOST =
 endif
