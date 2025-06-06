@@ -14,6 +14,9 @@ import multiprocessing
 from multiprocessing.pool import ThreadPool
 import threading
 import tempfile
+import socket
+from contextlib import suppress
+import resource
 
 # Maximum time to run a single test, in seconds.
 TEST_TIMEOUT = float(os.environ.get("MICROPY_TEST_TIMEOUT", 30))
@@ -374,10 +377,16 @@ def convert_device_shortcut_to_real_device(device):
     else:
         return device
 
-
-def get_test_instance(test_instance, baudrate, user, password):
-    if test_instance == "unix":
-        return None
+def get_test_instance(test_instance, baudrate, user, password, host, key):
+    if test_instance.startswith("port:"):
+        _, port = test_instance.split(":", 1)
+    elif test_instance == "unix":
+        if host is not None:
+            global paramiko
+            import paramiko
+            return PySSHRunner(user, host, key)
+        else:
+            return None
     elif test_instance == "webassembly":
         return PyboardNodeRunner()
     else:
@@ -853,6 +862,81 @@ class PyboardNodeRunner:
         # Return the results.
         return had_crash, output_mupy
 
+class PySSHRunner:
+    def __init__(self, user, hostname, keyfile):
+        self.remote_micropython_path = "/tmp/micropython"
+        self.remote_tests_path = "/tmp/tests"
+        self.ssh_client = paramiko.SSHClient()
+        self.ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy())
+
+        # List of tests that should be skipped when running on a 32-bit float target.
+        self.float_32bit_skip = ["float/float_parse.py", "float/float_parse_doubleprec.py"]
+
+        ssh_username = user
+        ssh_args = ""
+        if keyfile is None:
+            with suppress(paramiko.ssh_exception.AuthenticationException):
+                self.ssh_client.connect(hostname, 22, ssh_username)
+            self.ssh_client.get_transport().auth_none(ssh_username)
+        else:
+            self.ssh_client.connect(hostname, 22, ssh_username, key_filename=keyfile)
+            ssh_args = "-i " + keyfile
+
+        os.system(f"scp -O -q {ssh_args} {MICROPYTHON} {ssh_username}@{hostname}:{self.remote_micropython_path}")
+        os.system(f"scp -O -q -r {ssh_args} {base_path('../tests')} {ssh_username}@{hostname}:{os.path.dirname(self.remote_tests_path)}")
+
+    def close(self):
+        self.ssh_client.close()
+
+    def check_is_special(self, path):
+        return path.find("cmdline/") != -1 or os.path.basename(path).startswith("repl_") or path in self.float_32bit_skip
+
+    def run_script_on_remote_target(self, args, test_file, is_special):
+        if os.path.basename(test_file).startswith("repl_"):
+            return False, b"\nSKIP\n"
+
+        for skip_path in self.float_32bit_skip:
+            if test_file.endswith(skip_path):
+                return False, b"\nSKIP\n"
+
+        if not is_special:
+            is_special = self.check_is_special(test_file)
+
+        mp_args = ""
+        if is_special:
+            # check for any cmdline options needed for this test
+            with open(test_file, "r") as f:
+                line = f.readline()
+                if line.startswith("# cmdline:"):
+                    # subprocess.check_output on Windows only accepts strings, not bytes
+                    mp_args += line[10:].strip()
+
+            remote_file_path = test_file.replace(BASEPATH + "/", "")
+            cwd = self.remote_tests_path
+        else:
+            remote_file_path = test_file.replace(BASEPATH, self.remote_tests_path)
+            cwd = os.path.dirname(remote_file_path)
+
+        try:
+            had_crash = False
+            if args.heapsize is not None:
+                cmd = f"cd {cwd} >/dev/null && {self.remote_micropython_path} {mp_args} -X heapsize={args.heapsize} {remote_file_path} 2>&1"
+            else:
+                cmd = f"cd {cwd} >/dev/null && {self.remote_micropython_path} {mp_args} {remote_file_path} 2>&1"
+            
+            envs = None
+            if not args.keep_path:
+                # only search frozen modules
+                envs = {"MICROPYPATH" : ".frozen"}
+
+            _, _stdout, _ = self.ssh_client.exec_command(cmd, timeout=TEST_TIMEOUT, environment=envs)
+            output_mupy = _stdout.read()
+        except socket.timeout as er:
+            had_crash = True
+            output_mupy = (er.output or b"") + b"TIMEOUT"
+
+        # Return the results.
+        return had_crash, output_mupy
 
 def run_tests(pyb, tests, args, result_dir, num_threads=1):
     testcase_count = ThreadSafeCounter()
@@ -1103,8 +1187,14 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
             test_results.append((test_file, "skip", ""))
             return
 
-        # Run the test on the MicroPython target.
-        output_mupy = run_micropython(pyb, args, test_file, test_file_abspath)
+        # replace local path with ssh remote path
+        is_ssh_pyrunner = isinstance(pyb, PySSHRunner)
+        if is_ssh_pyrunner:
+            # run MicroPython
+            output_mupy = run_micropython(pyb, args, test_file, test_file_abspath, is_special=pyb.check_is_special(test_file))
+        else:
+            # Run the test on the MicroPython target.
+            output_mupy = run_micropython(pyb, args, test_file, test_file_abspath)
 
         # Check if the target requested to skip this test.
         if output_mupy == b"SKIP\n":
@@ -1178,6 +1268,9 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
 
             # Canonical form for all host platforms is to use \n for end-of-line.
             output_expected = output_expected.replace(b"\r\n", b"\n")
+
+        if is_ssh_pyrunner and output_expected is not None:
+            output_expected = output_expected.replace(BASEPATH.encode(), pyb.remote_tests_path.encode())
 
         # Work out if test passed or not.
         test_passed = False
@@ -1392,6 +1485,8 @@ the last matching regex is used:
     )
     cmd_parser.add_argument("-u", "--user", default="micro", help="the telnet login username")
     cmd_parser.add_argument("-p", "--password", default="python", help="the telnet login password")
+    cmd_parser.add_argument("-s", "--host", help="the ssh login hostname")
+    cmd_parser.add_argument("-k", "--key", help="the ssh login keyfile")
     cmd_parser.add_argument(
         "-d", "--test-dirs", nargs="*", help="input test directories (if no files given)"
     )
@@ -1494,7 +1589,7 @@ the last matching regex is used:
         sys.exit(0)
 
     # Get the test instance to run on.
-    pyb = get_test_instance(args.test_instance, args.baudrate, args.user, args.password)
+    pyb = get_test_instance(args.test_instance, args.baudrate, args.user, args.password, args.host, args.key)
 
     # Automatically detect the platform.
     detect_test_platform(pyb, args)
@@ -1571,6 +1666,10 @@ the last matching regex is used:
             + os.pathsep
             + base_path("../lib/micropython-lib/python-stdlib/unittest")
         )
+
+    # 设置ulimit -n 1024 测试select_fd要用
+    _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (1024, hard))
 
     try:
         os.makedirs(args.result_dir, exist_ok=True)
