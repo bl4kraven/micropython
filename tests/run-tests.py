@@ -49,7 +49,7 @@ else:
 
 # Use CPython options to not save .pyc files, to only access the core standard library
 # (not site packages which may clash with u-module names), and improve start up time.
-CPYTHON3_CMD = [CPYTHON3, "-BS"]
+CPYTHON3_CMD = [CPYTHON3, "-BS", "-W", "ignore::DeprecationWarning"]
 
 # File with the test results.
 RESULTS_FILE = "_results.json"
