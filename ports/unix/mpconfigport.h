@@ -226,3 +226,7 @@ static inline unsigned long mp_random_seed_init(void) {
 #ifndef MICROPY_PY_BLUETOOTH_ENABLE_L2CAP_CHANNELS
 #define MICROPY_PY_BLUETOOTH_ENABLE_L2CAP_CHANNELS (MICROPY_BLUETOOTH_NIMBLE)
 #endif
+
+
+#define MICROPY_USE_INTERNAL_PRINTF         (0) // internal printf not support 64bit when in 32bit arch
+												// openwrt lib need 64bit
