@@ -277,6 +277,11 @@ SRC_C += modubus.c
 LDFLAGS += -lubus -lubox -lblobmsg_json
 endif
 
+ifeq ($(MICROPY_PY_UCI),1)
+SRC_C += moduci.c
+LDFLAGS += -luci
+endif
+
 SHARED_SRC_C += $(addprefix shared/,\
 	runtime/gchelper_generic.c \
 	runtime/pyexec.c \
