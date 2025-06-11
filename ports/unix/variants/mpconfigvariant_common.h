@@ -118,3 +118,15 @@
 
 #define MICROPY_VFS_ROM                (1)
 #define MICROPY_VFS_ROM_IOCTL          (0)
+
+#define MICROPY_TIME_TICKS_S           (1)
+#define MICROPY_PY_OS_PIDFILE          (1)
+
+#define MICROPY_TIME_LOCALTIME_MS      (1)
+
+// 兼容CPYTHON
+#define MICROPY_PY_CPYTHON_COMPATIBLE  (1)
+
+#define MICROPY_PY_OS_UNAME            (1)
+#define MICROPY_HW_BOARD_NAME       "Linux"
+#define MICROPY_HW_MCU_NAME         "Linux"
