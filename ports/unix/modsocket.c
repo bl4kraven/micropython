@@ -734,9 +734,17 @@ static mp_obj_t mod_socket_sockaddr(mp_obj_t sockaddr_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_socket_sockaddr_obj, mod_socket_sockaddr);
 
+static mp_obj_t mod_fromfd(size_t n_args, const mp_obj_t *args) {
+    int fd = mp_obj_get_int(args[0]);
+    // ignore other type argument
+    return MP_OBJ_FROM_PTR(socket_new(fd));
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_fromfd_obj, 1, 4, mod_fromfd);
+
 static const mp_rom_map_elem_t mp_module_socket_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_socket) },
     { MP_ROM_QSTR(MP_QSTR_socket), MP_ROM_PTR(&mp_type_socket) },
+    { MP_ROM_QSTR(MP_QSTR_fromfd), MP_ROM_PTR(&mod_fromfd_obj) },
     { MP_ROM_QSTR(MP_QSTR_getaddrinfo), MP_ROM_PTR(&mod_socket_getaddrinfo_obj) },
     { MP_ROM_QSTR(MP_QSTR_inet_pton), MP_ROM_PTR(&mod_socket_inet_pton_obj) },
     { MP_ROM_QSTR(MP_QSTR_inet_ntop), MP_ROM_PTR(&mod_socket_inet_ntop_obj) },
